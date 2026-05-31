@@ -3,6 +3,7 @@ package com.calorietracker.diary;
 import com.calorietracker.diary.dto.*;
 import com.calorietracker.food.Food;
 import com.calorietracker.food.FoodService;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Service
 public class DiaryService {
@@ -75,6 +77,14 @@ public class DiaryService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
         item.setQuantityGrams(newGrams);
         return DiaryItemResponse.from(itemRepo.save(item));
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecentFoodDto> getRecentFoods(int limit) {
+        return itemRepo.findRecentDistinctFoods(PageRequest.of(0, limit))
+                .stream()
+                .map(RecentFoodDto::from)
+                .toList();
     }
 
     @Transactional

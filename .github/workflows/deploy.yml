@@ -21,18 +21,10 @@ jobs:
       - uses: actions/checkout@v4
 
       # ── Build ────────────────────────────────────────────────────────────────
-
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-          cache: gradle
-
-      - name: Build JAR (skip tests — tested in CI job)
-        run: ./gradlew bootJar --no-daemon -x test
-
-      # ── AWS credentials via OIDC ─────────────────────────────────────────────
+      # The Dockerfile is multi-stage and self-contained: it builds the JAR
+      # inside Docker using the Gradle wrapper, so no separate host-side build
+      # step is needed. This keeps the CI logic simple and ensures the image
+      # built here is exactly what runs in production.
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -56,8 +48,8 @@ jobs:
           docker push "$COMMIT_URI"
 
       # ── App Runner ───────────────────────────────────────────────────────────
-      # App Runner has auto_deployments_enabled = false; we trigger manually
-      # so we can verify the deployment completes successfully.
+      # auto_deployments_enabled = false in Terraform, so we trigger manually.
+      # Triggering via update-service forces App Runner to pull the new :latest.
 
       - name: Deploy to App Runner
         env:
@@ -85,15 +77,19 @@ jobs:
               --query 'Service.Status' \
               --output text \
               --region "$AWS_REGION")
-            echo "  Status: $STATUS"
+            echo "  [$i/30] Status: $STATUS"
             if [ "$STATUS" = "RUNNING" ]; then
               echo "Deployment complete."
               exit 0
-            elif [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
+            fi
+            # Fail fast on any terminal error state
+            if [ "$STATUS" = "CREATE_FAILED" ] || \
+               [ "$STATUS" = "UPDATE_FAILED" ] || \
+               [ "$STATUS" = "DELETE_FAILED" ]; then
               echo "Deployment failed with status: $STATUS"
               exit 1
             fi
             sleep 20
           done
-          echo "Timed out waiting for deployment."
+          echo "Timed out after 10 minutes waiting for deployment."
           exit 1

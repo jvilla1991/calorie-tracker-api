@@ -48,48 +48,71 @@ jobs:
           docker push "$COMMIT_URI"
 
       # ── App Runner ───────────────────────────────────────────────────────────
-      # auto_deployments_enabled = false in Terraform, so we trigger manually.
-      # Triggering via update-service forces App Runner to pull the new :latest.
+      # auto_deployments_enabled = false in Terraform, so we deploy explicitly.
+      #
+      # ROOT-CAUSE FIX: deploy the IMMUTABLE :<sha> image, never :latest.
+      # `aws apprunner update-service` only starts a deployment when the service
+      # configuration actually CHANGES. Re-submitting the same ":latest" identifier
+      # every build is a silent no-op: App Runner returns success WITHOUT pulling the
+      # new image, so production froze on its original image while CI stayed green.
+      # A per-commit :<sha> identifier changes the config every time, so the deploy
+      # always fires and is auditable. We then fail the build unless a deployment
+      # actually started (OperationId), finished SUCCEEDED, and left the live image
+      # equal to the commit we shipped.
 
-      - name: Deploy to App Runner
+      - name: Deploy to App Runner (immutable :<sha> image)
         env:
           SERVICE_ARN: ${{ secrets.APPRUNNER_SERVICE_ARN }}
         run: |
-          aws apprunner update-service \
+          OP_ID=$(aws apprunner update-service \
             --service-arn "$SERVICE_ARN" \
             --source-configuration '{
               "ImageRepository": {
-                "ImageIdentifier": "${{ secrets.ECR_REPOSITORY_URL }}:latest",
+                "ImageIdentifier": "${{ secrets.ECR_REPOSITORY_URL }}:${{ github.sha }}",
                 "ImageRepositoryType": "ECR"
               },
               "AutoDeploymentsEnabled": false
             }' \
-            --region "$AWS_REGION"
+            --region "$AWS_REGION" \
+            --query 'OperationId' --output text)
+          echo "OperationId: $OP_ID"
+          if [ -z "$OP_ID" ] || [ "$OP_ID" = "None" ]; then
+            echo "::error::App Runner did not start a deployment (no OperationId)."
+            echo "::error::The image identifier was unchanged — this is the silent no-op"
+            echo "::error::that previously froze production. Failing the build."
+            exit 1
+          fi
 
-      - name: Wait for App Runner deployment
+      - name: Verify the deployment actually shipped
         env:
           SERVICE_ARN: ${{ secrets.APPRUNNER_SERVICE_ARN }}
+          EXPECTED_IMAGE: ${{ secrets.ECR_REPOSITORY_URL }}:${{ github.sha }}
         run: |
-          echo "Waiting for App Runner service to reach RUNNING state..."
-          for i in $(seq 1 30); do
-            STATUS=$(aws apprunner describe-service \
-              --service-arn "$SERVICE_ARN" \
-              --query 'Service.Status' \
-              --output text \
-              --region "$AWS_REGION")
-            echo "  [$i/30] Status: $STATUS"
-            if [ "$STATUS" = "RUNNING" ]; then
-              echo "Deployment complete."
-              exit 0
+          # Initial pause so we don't read the prior "RUNNING" before App Runner
+          # transitions into OPERATION_IN_PROGRESS (which would pass falsely).
+          sleep 20
+          echo "Waiting for App Runner to finish deploying $EXPECTED_IMAGE ..."
+          for i in $(seq 1 40); do
+            STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" \
+              --region "$AWS_REGION" --query 'Service.Status' --output text)
+            echo "  [$i/40] status: $STATUS"
+            case "$STATUS" in
+              RUNNING) break ;;
+              CREATE_FAILED|UPDATE_FAILED|DELETE_FAILED|PAUSED)
+                echo "::error::App Runner deployment ended in $STATUS"; exit 1 ;;
+            esac
+            if [ "$i" -eq 40 ]; then
+              echo "::error::Timed out waiting for the deployment to finish"; exit 1
             fi
-            # Fail fast on any terminal error state
-            if [ "$STATUS" = "CREATE_FAILED" ] || \
-               [ "$STATUS" = "UPDATE_FAILED" ] || \
-               [ "$STATUS" = "DELETE_FAILED" ]; then
-              echo "Deployment failed with status: $STATUS"
-              exit 1
-            fi
-            sleep 20
+            sleep 15
           done
-          echo "Timed out after 10 minutes waiting for deployment."
-          exit 1
+          # Definitive proof the NEW image is live (not a stale container):
+          LIVE_IMAGE=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" \
+            --region "$AWS_REGION" \
+            --query 'Service.SourceConfiguration.ImageRepository.ImageIdentifier' --output text)
+          echo "Live image:     $LIVE_IMAGE"
+          echo "Expected image: $EXPECTED_IMAGE"
+          if [ "$LIVE_IMAGE" != "$EXPECTED_IMAGE" ]; then
+            echo "::error::Live image does not match the commit we deployed (stale deploy)."; exit 1
+          fi
+          echo "Production is now running ${{ github.sha }}"

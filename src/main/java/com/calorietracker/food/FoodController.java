@@ -22,7 +22,7 @@ public class FoodController {
     }
 
     @GetMapping("/search")
-    public List<FoodDto> search(@RequestParam String q) {
+    public FoodSearchResponse search(@RequestParam String q) {
         return foodService.search(q);
     }
 

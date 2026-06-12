@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,22 +22,55 @@ public class FoodService {
         this.offClient = offClient;
     }
 
-    /** Search local DB first; if empty, fetch from Open Food Facts and cache results */
+    /**
+     * Search foods in two independent categories, always returned together:
+     * <ul>
+     *   <li>{@code mine} — the user's own foods (source = "custom").</li>
+     *   <li>{@code external} — Open Food Facts matches: previously-cached ones plus a
+     *       fresh API query, so results persist even if Open Food Facts is unreachable.</li>
+     * </ul>
+     * External results are deduped (by barcode, else name+brand) and cached without
+     * inserting duplicate rows when the same product is seen again.
+     */
     @Transactional
-    public List<FoodDto> search(String query) {
-        List<Food> local = foodRepository.searchByName(query);
-        if (!local.isEmpty()) {
-            log.debug("Food search '{}': {} local hits", query, local.size());
-            return local.stream().map(FoodDto::from).toList();
+    public FoodSearchResponse search(String query) {
+        List<FoodDto> mine = foodRepository.searchByNameAndSource(query, "custom")
+                .stream().map(FoodDto::from).toList();
+
+        // Dedup external matches in first-seen order: cached rows first, then fresh API hits.
+        LinkedHashMap<String, Food> external = new LinkedHashMap<>();
+        for (Food f : foodRepository.searchByNameAndSource(query, "openfoodfacts")) {
+            external.putIfAbsent(dedupKey(f), f);
+        }
+        for (OpenFoodFactsClient.OFFProduct p : offClient.search(query)) {
+            Food f = upsertExternal(p);
+            external.putIfAbsent(dedupKey(f), f);
         }
 
-        log.debug("Food search '{}': querying Open Food Facts", query);
-        List<OpenFoodFactsClient.OFFProduct> products = offClient.search(query);
-        List<Food> saved = products.stream()
-                .map(this::offProductToFood)
-                .map(foodRepository::save)
-                .toList();
-        return saved.stream().map(FoodDto::from).toList();
+        log.debug("Food search '{}': {} mine, {} external", query, mine.size(), external.size());
+        List<FoodDto> externalDtos = external.values().stream().map(FoodDto::from).toList();
+        return new FoodSearchResponse(mine, externalDtos);
+    }
+
+    /** Cache an Open Food Facts product, reusing the existing row if its barcode is already stored. */
+    private Food upsertExternal(OpenFoodFactsClient.OFFProduct p) {
+        if (p.code != null && !p.code.isBlank()) {
+            Optional<Food> existing = foodRepository.findByBarcode(p.code);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+        return foodRepository.save(offProductToFood(p));
+    }
+
+    /** Stable identity for an external food: barcode when present, otherwise name+brand. */
+    private static String dedupKey(Food f) {
+        if (f.getBarcode() != null && !f.getBarcode().isBlank()) {
+            return "bc:" + f.getBarcode();
+        }
+        String name  = f.getName()  == null ? "" : f.getName().toLowerCase();
+        String brand = f.getBrand() == null ? "" : f.getBrand().toLowerCase();
+        return "nm:" + name + "|" + brand;
     }
 
     /** Barcode lookup: local first, then Open Food Facts with auto-cache */

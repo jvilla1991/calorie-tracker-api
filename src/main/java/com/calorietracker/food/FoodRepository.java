@@ -11,12 +11,18 @@ public interface FoodRepository extends JpaRepository<Food, Long> {
 
     Optional<Food> findByBarcode(String barcode);
 
+    /**
+     * Name search restricted to a single source ("custom" or "openfoodfacts").
+     * Full-text match first, falling back to a substring (ILIKE) match so partial
+     * words still hit. Used to build the two search categories independently.
+     */
     @Query(value = """
         SELECT * FROM foods
-        WHERE to_tsvector('english', name) @@ plainto_tsquery('english', :q)
-           OR name ILIKE '%' || :q || '%'
+        WHERE source = :source
+          AND (to_tsvector('english', name) @@ plainto_tsquery('english', :q)
+               OR name ILIKE '%' || :q || '%')
         ORDER BY name
         LIMIT 20
         """, nativeQuery = true)
-    List<Food> searchByName(@Param("q") String query);
+    List<Food> searchByNameAndSource(@Param("q") String query, @Param("source") String source);
 }

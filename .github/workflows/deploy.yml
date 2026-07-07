@@ -12,6 +12,9 @@ jobs:
   build-and-deploy:
     name: Build, push & deploy
     runs-on: ubuntu-latest
+    # The deploy role's OIDC trust is pinned to this GitHub Environment (§B8.2) —
+    # without it the AssumeRoleWithWebIdentity sub claim won't match.
+    environment: production
 
     permissions:
       id-token: write   # required for OIDC

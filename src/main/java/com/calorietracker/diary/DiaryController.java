@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -16,9 +17,24 @@ import java.util.Map;
 public class DiaryController {
 
     private final DiaryService diaryService;
+    private final DiarySummaryService summaryService;
 
-    public DiaryController(DiaryService diaryService) {
+    public DiaryController(DiaryService diaryService, DiarySummaryService summaryService) {
         this.diaryService = diaryService;
+        this.summaryService = summaryService;
+    }
+
+    /**
+     * {@code GET /api/diary/summary?from=YYYY-MM-DD&to=YYYY-MM-DD}: one row per day,
+     * {@code from} to {@code to} inclusive, ascending; unlogged days are zeros. Each row is
+     * {@code {date, calories, protein, carbs, fat, fiber, goalCalories}}.
+     * 400 if a param is missing or malformed, {@code from > to}, or the range exceeds 366 days.
+     */
+    @GetMapping("/summary")
+    public List<DailySummaryDto> summary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return summaryService.summarize(from, to);
     }
 
     @GetMapping("/{date}")

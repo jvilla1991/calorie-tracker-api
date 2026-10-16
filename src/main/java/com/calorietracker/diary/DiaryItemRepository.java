@@ -10,6 +10,8 @@ public interface DiaryItemRepository extends JpaRepository<DiaryItem, Long> {
 
     /**
      * Returns the most-recent DiaryItem for each distinct food, ordered by addedAt DESC.
+     * Paged via {@code pageable}; the secondary {@code id DESC} sort breaks ties between
+     * items with the same timestamp so page boundaries are deterministic.
      * Used to power the "Recent foods" picker in the front-end.
      * The inner subquery selects the highest item id per food (i.e. the latest log),
      * then the outer query fetches those full rows and sorts them.
@@ -19,7 +21,7 @@ public interface DiaryItemRepository extends JpaRepository<DiaryItem, Long> {
             WHERE i.id IN (
                 SELECT MAX(i2.id) FROM DiaryItem i2 GROUP BY i2.food
             )
-            ORDER BY i.addedAt DESC
+            ORDER BY i.addedAt DESC, i.id DESC
             """)
     List<DiaryItem> findRecentDistinctFoods(Pageable pageable);
 }

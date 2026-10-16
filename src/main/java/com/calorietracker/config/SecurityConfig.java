@@ -1,9 +1,11 @@
 package com.calorietracker.config;
 
 import com.calorietracker.user.UserRepository;
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,6 +17,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -36,10 +39,21 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Let Spring Boot's error forward (/error) through. The original request was
+                // already authorized (or rejected) on the way in; without this the forward
+                // itself is re-checked as an anonymous request and every 400/404/500 a
+                // controller produces is masked as a 403/401.
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/api/auth/login").permitAll()
                 .anyRequest().authenticated()
             )
+            // No/invalid/expired token -> 401. Without an entry point, this stateless setup
+            // falls back to Http403ForbiddenEntryPoint and answers 403 instead. Authenticated
+            // but forbidden requests still get 403 from the default AccessDeniedHandler.
+            // This also covers a failed login: AuthenticationManager's BadCredentialsException
+            // reaches ExceptionTranslationFilter and is answered with 401.
+            .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

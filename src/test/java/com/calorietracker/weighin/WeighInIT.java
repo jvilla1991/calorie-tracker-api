@@ -63,6 +63,6 @@ class WeighInIT {
     @Test
     void endpointsRequireAuthentication() throws Exception {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        mvc.perform(get("/api/weigh-ins")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/weigh-ins")).andExpect(status().isUnauthorized());
     }
 }

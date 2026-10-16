@@ -36,10 +36,20 @@ class AuthEndpointsSecurityTest {
 
     @Test
     void register_isNotPubliclyReachable() throws Exception {
+        // The endpoint was removed, so this is an unauthenticated request to a protected path: 401.
         mvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"stranger\",\"password\":\"secret\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void login_wrongPassword_is401() throws Exception {
+        String body = "{\"username\":\"" + adminUsername + "\",\"password\":\"definitely-wrong\"}";
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

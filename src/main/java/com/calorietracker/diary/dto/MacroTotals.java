@@ -1,5 +1,8 @@
 package com.calorietracker.diary.dto;
 
+import com.calorietracker.diary.DiaryItem;
+import com.calorietracker.food.Food;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -16,6 +19,16 @@ public class MacroTotals {
         this.carbs    = this.carbs.add(other.carbs);
         this.fat      = this.fat.add(other.fat);
         this.fiber    = this.fiber.add(other.fiber);
+    }
+
+    /**
+     * Macros for one logged item: the food's per-100g values scaled to the logged grams.
+     * Single source of truth for item math, shared by the diary day view and the summary.
+     */
+    public static MacroTotals forItem(DiaryItem item) {
+        Food f = item.getFood();
+        return scale(f.getCaloriesPer100g(), f.getProteinPer100g(), f.getCarbsPer100g(),
+                     f.getFatPer100g(), f.getFiberPer100g(), item.getQuantityGrams());
     }
 
     public static MacroTotals scale(BigDecimal per100g_cal, BigDecimal per100g_prot,

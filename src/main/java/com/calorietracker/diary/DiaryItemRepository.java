@@ -3,6 +3,9 @@ package com.calorietracker.diary;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
 
 import java.util.List;
 
@@ -22,4 +25,18 @@ public interface DiaryItemRepository extends JpaRepository<DiaryItem, Long> {
             ORDER BY i.addedAt DESC
             """)
     List<DiaryItem> findRecentDistinctFoods(Pageable pageable);
+
+    /**
+     * Every logged item whose diary date falls in {@code [from, to]}, with its food, meal and
+     * entry fetched in the same query (one round trip for the whole range, no N+1).
+     * Powers GET /api/diary/summary.
+     */
+    @Query("""
+            SELECT i FROM DiaryItem i
+            JOIN FETCH i.food
+            JOIN FETCH i.diaryMeal m
+            JOIN FETCH m.diaryEntry e
+            WHERE e.entryDate BETWEEN :from AND :to
+            """)
+    List<DiaryItem> findAllInDateRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
 }

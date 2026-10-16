@@ -34,13 +34,23 @@ public class FoodController {
     }
 
     /**
-     * Returns the last {@code limit} distinct foods the user logged, most-recent first,
-     * each paired with the quantity (grams) from their most recent log entry.
-     * Used to power the "Recent" section of the food picker.
+     * Returns one page of distinct foods the user logged, most-recent first, each paired with
+     * the quantity (grams) from its most recent log entry. Powers the "Recent" food picker.
+     *
+     * <p>{@code GET /api/foods/recent?page=0&size=20}. {@code page} defaults to 0 (negatives
+     * clamp to 0); {@code size} defaults to 20 and is clamped to 1..50. The legacy
+     * {@code limit} parameter is still accepted as an alias for {@code size} ({@code size}
+     * wins if both are sent). The response is a plain JSON array; a page shorter than
+     * {@code size} means there are no more results.
      */
     @GetMapping("/recent")
-    public List<RecentFoodDto> recent(@RequestParam(defaultValue = "10") int limit) {
-        return diaryService.getRecentFoods(Math.min(limit, 20));
+    public List<RecentFoodDto> recent(@RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(required = false) Integer size,
+                                      @RequestParam(required = false) Integer limit) {
+        int requested = size != null ? size
+                : limit != null ? limit
+                : DiaryService.RECENT_DEFAULT_SIZE;
+        return diaryService.getRecentFoods(page, requested);
     }
 
     @PostMapping

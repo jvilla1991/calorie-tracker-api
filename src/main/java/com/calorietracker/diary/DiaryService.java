@@ -79,9 +79,20 @@ public class DiaryService {
         return DiaryItemResponse.from(itemRepo.save(item));
     }
 
+    /** Default and maximum page size for {@link #getRecentFoods(int, int)}. */
+    public static final int RECENT_DEFAULT_SIZE = 20;
+    public static final int RECENT_MAX_SIZE     = 50;
+
+    /**
+     * One page of distinct recently-logged foods, most recent first.
+     * Out-of-range input is clamped rather than rejected: a negative {@code page} becomes 0,
+     * and {@code size} is forced into {@code 1..RECENT_MAX_SIZE}.
+     */
     @Transactional(readOnly = true)
-    public List<RecentFoodDto> getRecentFoods(int limit) {
-        return itemRepo.findRecentDistinctFoods(PageRequest.of(0, limit))
+    public List<RecentFoodDto> getRecentFoods(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), RECENT_MAX_SIZE);
+        return itemRepo.findRecentDistinctFoods(PageRequest.of(safePage, safeSize))
                 .stream()
                 .map(RecentFoodDto::from)
                 .toList();

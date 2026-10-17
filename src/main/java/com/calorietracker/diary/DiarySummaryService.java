@@ -20,8 +20,8 @@ import java.util.Map;
 
 /**
  * Per-day nutrition totals over a date range, for trend charts.
- * Uses four queries total (items in range + goal history + exercise totals + eating windows),
- * regardless of range length.
+ * Uses five queries total (items in range + meal calorie estimates in range + goal history +
+ * exercise totals + eating windows), regardless of range length.
  */
 @Service
 public class DiarySummaryService {
@@ -30,14 +30,16 @@ public class DiarySummaryService {
     public static final int MAX_RANGE_DAYS = 366;
 
     private final DiaryItemRepository itemRepo;
+    private final DiaryMealRepository mealRepo;
     private final GoalsService goalsService;
     private final ExerciseService exerciseService;
     private final EatingWindowService eatingWindowService;
 
-    public DiarySummaryService(DiaryItemRepository itemRepo, GoalsService goalsService,
-                               ExerciseService exerciseService,
+    public DiarySummaryService(DiaryItemRepository itemRepo, DiaryMealRepository mealRepo,
+                               GoalsService goalsService, ExerciseService exerciseService,
                                EatingWindowService eatingWindowService) {
         this.itemRepo = itemRepo;
+        this.mealRepo = mealRepo;
         this.goalsService = goalsService;
         this.exerciseService = exerciseService;
         this.eatingWindowService = eatingWindowService;
@@ -45,7 +47,8 @@ public class DiarySummaryService {
 
     /**
      * One row per day from {@code from} to {@code to} inclusive, ascending. Days with nothing
-     * logged are present with zero totals.
+     * logged are present with zero totals. A day's {@code calories} includes its meals' calorie
+     * estimates, exactly as the diary day view's totals do.
      *
      * @throws ResponseStatusException 400 if {@code from > to} or the range exceeds
      *                                 {@value #MAX_RANGE_DAYS} days
@@ -65,6 +68,10 @@ public class DiarySummaryService {
         for (DiaryItem item : itemRepo.findAllInDateRange(from, to)) {
             LocalDate date = item.getDiaryMeal().getDiaryEntry().getEntryDate();
             totalsByDate.computeIfAbsent(date, d -> new MacroTotals()).add(MacroTotals.forItem(item));
+        }
+        for (DailyEstimateTotal estimate : mealRepo.sumEstimatedCaloriesByDate(from, to)) {
+            totalsByDate.computeIfAbsent(estimate.date(), d -> new MacroTotals())
+                    .add(MacroTotals.forEstimate(Math.toIntExact(estimate.calories())));
         }
         Map<LocalDate, Integer> goals = goalsService.caloriesGoalsByDate(from, to);
         Map<LocalDate, Integer> exercise = exerciseService.caloriesByDate(from, to);

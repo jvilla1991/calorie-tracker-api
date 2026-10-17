@@ -5,6 +5,7 @@ import com.calorietracker.eatingwindow.EatingWindowService;
 import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.food.Food;
 import com.calorietracker.food.FoodService;
+import com.calorietracker.photo.MealPhotoService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,37 +19,47 @@ import java.util.List;
 @Service
 public class DiaryService {
 
+    /** Longest allowed meal note, counted after trimming. */
+    public static final int NOTE_MAX_LENGTH = 500;
+
     private final DiaryEntryRepository entryRepo;
     private final DiaryMealRepository  mealRepo;
     private final DiaryItemRepository  itemRepo;
     private final FoodService          foodService;
     private final ExerciseService      exerciseService;
     private final EatingWindowService  eatingWindowService;
+    private final MealPhotoService     photoService;
 
     public DiaryService(DiaryEntryRepository entryRepo,
                         DiaryMealRepository mealRepo,
                         DiaryItemRepository itemRepo,
                         FoodService foodService,
                         ExerciseService exerciseService,
-                        EatingWindowService eatingWindowService) {
+                        EatingWindowService eatingWindowService,
+                        MealPhotoService photoService) {
         this.entryRepo       = entryRepo;
         this.mealRepo        = mealRepo;
         this.itemRepo        = itemRepo;
         this.foodService     = foodService;
         this.exerciseService = exerciseService;
         this.eatingWindowService = eatingWindowService;
+        this.photoService    = photoService;
     }
 
     /**
      * The day view. Read-only: a day with no {@code diary_entries} row (e.g. exercise logged but
      * no food) is answered with empty meals and still carries its exercise and eating window;
-     * no row is created.
+     * no row is created. The meals' photos come from one query for the whole day.
      */
     @Transactional(readOnly = true)
     public DiaryResponse getDay(LocalDate date) {
-        return entryRepo.findByEntryDate(date)
+        DiaryResponse day = entryRepo.findByEntryDate(date)
                 .map(DiaryResponse::from)
-                .orElse(DiaryResponse.empty(date))
+                .orElse(DiaryResponse.empty(date));
+        if (!day.meals().isEmpty()) {
+            day = day.withPhotos(photoService.byMealForDay(date));
+        }
+        return day
                 .withExercise(exerciseService.forDay(date))
                 .withEatingWindow(eatingWindowService.forDay(date).orElse(null));
     }
@@ -69,6 +80,31 @@ public class DiaryService {
         meal.setDisplayOrder(order);
         meal = mealRepo.save(meal);
         return DiaryMealResponse.from(meal);
+    }
+
+    /**
+     * Replaces a meal's note and calorie estimate (both fields, every time: null clears one).
+     * The note is trimmed and a blank note is stored as null. The estimate counts toward the
+     * meal's and the day's calories.
+     *
+     * @throws ResponseStatusException 400 if the trimmed note is longer than
+     *                                 {@value #NOTE_MAX_LENGTH} characters; 404 if no such meal
+     */
+    @Transactional
+    public DiaryMealResponse updateDetails(Long mealId, MealDetailsRequest req) {
+        String note = req.note() == null ? null : req.note().trim();
+        if (note != null && note.isEmpty()) {
+            note = null;
+        }
+        if (note != null && note.length() > NOTE_MAX_LENGTH) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Note must be at most " + NOTE_MAX_LENGTH + " characters");
+        }
+        DiaryMeal meal = mealRepo.findById(mealId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Meal not found"));
+        meal.setNote(note);
+        meal.setEstimatedCalories(req.estimatedCalories() == null ? null : req.estimatedCalories().intValueExact());
+        return DiaryMealResponse.from(mealRepo.save(meal)).withPhotos(photoService.forMeal(mealId));
     }
 
     @Transactional

@@ -43,8 +43,8 @@ class DiarySummaryIT {
         return f;
     }
 
-    private void log(LocalDate date, String mealType, Food f, String grams) {
-        DiaryEntry entry = em.createQuery("SELECT e FROM DiaryEntry e WHERE e.entryDate = :d", DiaryEntry.class)
+    private DiaryEntry entry(LocalDate date) {
+        return em.createQuery("SELECT e FROM DiaryEntry e WHERE e.entryDate = :d", DiaryEntry.class)
                 .setParameter("d", date).getResultStream().findFirst()
                 .orElseGet(() -> {
                     DiaryEntry e = new DiaryEntry();
@@ -52,8 +52,11 @@ class DiarySummaryIT {
                     em.persist(e);
                     return e;
                 });
+    }
+
+    private void log(LocalDate date, String mealType, Food f, String grams) {
         DiaryMeal meal = new DiaryMeal();
-        meal.setDiaryEntry(entry);
+        meal.setDiaryEntry(entry(date));
         meal.setMealType(mealType);
         em.persist(meal);
         DiaryItem i = new DiaryItem();
@@ -61,6 +64,15 @@ class DiarySummaryIT {
         i.setFood(f);
         i.setQuantityGrams(new BigDecimal(grams));
         em.persist(i);
+    }
+
+    /** A meal with only a rough calorie estimate and nothing logged (e.g. eating out). */
+    private void estimate(LocalDate date, String mealType, int calories) {
+        DiaryMeal meal = new DiaryMeal();
+        meal.setDiaryEntry(entry(date));
+        meal.setMealType(mealType);
+        meal.setEstimatedCalories(calories);
+        em.persist(meal);
     }
 
     private void goal(LocalDate effectiveFrom, int calories) {
@@ -85,7 +97,9 @@ class DiarySummaryIT {
         log(D1, "breakfast", oats, "47.5");
         log(D1, "breakfast", milk, "240");
         log(D1, "dinner", oats, "13.3");
+        estimate(D1, "lunch", 650);          // eaten out: an estimate, nothing logged
         log(D1.plusDays(3), "lunch", milk, "100");
+        estimate(D1.plusDays(4), "dinner", 900);   // just outside the range: must not count
         em.flush();
         em.clear();
 
@@ -94,6 +108,8 @@ class DiarySummaryIT {
         assertThat(rows).extracting(DailySummaryDto::date)
                 .containsExactly(D1, D1.plusDays(1), D1.plusDays(2), D1.plusDays(3));
         assertThat(rows).extracting(DailySummaryDto::goalCalories).containsExactly(2000, 2000, 1700, 1700);
+        // 184.93 + 100.80 + 51.78 logged, plus the 650 estimate.
+        assertThat(rows.get(0).calories()).isEqualByComparingTo("987.51");
         assertThat(rows.get(1).calories()).isEqualByComparingTo("0");
         assertThat(rows.get(2).calories()).isEqualByComparingTo("0");
         assertThat(rows.get(3).calories()).isEqualByComparingTo("42");

@@ -31,6 +31,19 @@ public class MacroTotals {
                      f.getFatPer100g(), f.getFiberPer100g(), item.getQuantityGrams());
     }
 
+    /**
+     * A meal's rough calorie estimate as totals: calories only, since an estimate has no macros.
+     * All zeros when {@code estimatedCalories} is null. Shared by the diary day view and the
+     * summary, so both count estimates the same way.
+     */
+    public static MacroTotals forEstimate(Integer estimatedCalories) {
+        MacroTotals t = new MacroTotals();
+        if (estimatedCalories != null) {
+            t.calories = BigDecimal.valueOf(estimatedCalories);
+        }
+        return t;
+    }
+
     public static MacroTotals scale(BigDecimal per100g_cal, BigDecimal per100g_prot,
                                      BigDecimal per100g_carb, BigDecimal per100g_fat,
                                      BigDecimal per100g_fib, BigDecimal grams) {

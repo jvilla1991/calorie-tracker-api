@@ -34,6 +34,7 @@ class DiarySummaryServiceTest {
     private static final LocalDate D1 = LocalDate.of(2026, 10, 1);
 
     @Mock DiaryItemRepository itemRepo;
+    @Mock DiaryMealRepository mealRepo;
     @Mock GoalsService goalsService;
     @Mock ExerciseService exerciseService;
     @Mock EatingWindowService eatingWindowService;
@@ -109,6 +110,53 @@ class DiarySummaryServiceTest {
         DailySummaryDto row = service.summarize(D1, D1).get(0);
         DiaryResponse dayView = DiaryResponse.from(day);
 
+        assertThat(row.calories()).isEqualTo(dayView.totals().getCalories());
+        assertThat(row.protein()).isEqualTo(dayView.totals().getProtein());
+        assertThat(row.carbs()).isEqualTo(dayView.totals().getCarbs());
+        assertThat(row.fat()).isEqualTo(dayView.totals().getFat());
+        assertThat(row.fiber()).isEqualTo(dayView.totals().getFiber());
+    }
+
+    @Test
+    void mealEstimatesAddCaloriesButNoMacros_fromOneRangeQuery() {
+        DiaryEntry day2 = entry(D1.plusDays(1));
+        when(itemRepo.findAllInDateRange(D1, D1.plusDays(2)))
+                .thenReturn(List.of(item(day2, food("200", "10", "20", "5", "2"), "150")));
+        when(mealRepo.sumEstimatedCaloriesByDate(D1, D1.plusDays(2))).thenReturn(List.of(
+                new DailyEstimateTotal(D1, 900L),                 // an estimate and nothing logged
+                new DailyEstimateTotal(D1.plusDays(1), 450L)));
+        goalsConstant(D1, D1.plusDays(2), 2000);
+
+        List<DailySummaryDto> rows = service.summarize(D1, D1.plusDays(2));
+
+        assertThat(rows.get(0).calories()).isEqualByComparingTo("900");
+        assertThat(rows.get(0).protein()).isEqualByComparingTo("0");
+        assertThat(rows.get(1).calories()).isEqualByComparingTo("750");   // 300 logged + 450 estimated
+        assertThat(rows.get(1).protein()).isEqualByComparingTo("15");
+        assertThat(rows.get(1).carbs()).isEqualByComparingTo("30");
+        assertThat(rows.get(2).calories()).isEqualByComparingTo("0");
+        verify(mealRepo, times(1)).sumEstimatedCaloriesByDate(D1, D1.plusDays(2));
+        verifyNoMoreInteractions(mealRepo);
+    }
+
+    @Test
+    void totalsWithEstimatesMatchTheDiaryDayViewExactly() {
+        DiaryEntry day = entry(D1);
+        DiaryItem logged = item(day, food("123.45", "7.77", "3.33", "1.11", null), "33.33");
+        logged.getDiaryMeal().setEstimatedCalories(250);   // a logged meal that also has an estimate
+        DiaryMeal estimateOnly = new DiaryMeal();
+        estimateOnly.setDiaryEntry(day);
+        estimateOnly.setMealType("dinner");
+        estimateOnly.setEstimatedCalories(900);
+        day.getMeals().add(estimateOnly);
+        when(itemRepo.findAllInDateRange(D1, D1)).thenReturn(List.of(logged));
+        when(mealRepo.sumEstimatedCaloriesByDate(D1, D1)).thenReturn(List.of(new DailyEstimateTotal(D1, 1150L)));
+        goalsConstant(D1, D1, 2000);
+
+        DailySummaryDto row = service.summarize(D1, D1).get(0);
+        DiaryResponse dayView = DiaryResponse.from(day);
+
+        assertThat(row.calories()).isEqualByComparingTo("1191.15");      // 41.15 logged + 250 + 900
         assertThat(row.calories()).isEqualTo(dayView.totals().getCalories());
         assertThat(row.protein()).isEqualTo(dayView.totals().getProtein());
         assertThat(row.carbs()).isEqualTo(dayView.totals().getCarbs());

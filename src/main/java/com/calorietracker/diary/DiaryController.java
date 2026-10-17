@@ -27,7 +27,8 @@ public class DiaryController {
     /**
      * {@code GET /api/diary/summary?from=YYYY-MM-DD&to=YYYY-MM-DD}: one row per day,
      * {@code from} to {@code to} inclusive, ascending; unlogged days are zeros. Each row is
-     * {@code {date, calories, protein, carbs, fat, fiber, goalCalories, exerciseCalories}}.
+     * {@code {date, calories, protein, carbs, fat, fiber, goalCalories, exerciseCalories,
+     * eatingStartedAt, eatingEndedAt}}.
      * 400 if a param is missing or malformed, {@code from > to}, or the range exceeds 366 days.
      */
     @GetMapping("/summary")

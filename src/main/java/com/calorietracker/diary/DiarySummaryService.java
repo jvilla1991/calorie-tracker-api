@@ -2,6 +2,8 @@ package com.calorietracker.diary;
 
 import com.calorietracker.diary.dto.DailySummaryDto;
 import com.calorietracker.diary.dto.MacroTotals;
+import com.calorietracker.eatingwindow.EatingWindowService;
+import com.calorietracker.eatingwindow.dto.EatingWindowResponse;
 import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.goals.GoalsService;
 import org.springframework.http.HttpStatus;
@@ -18,8 +20,8 @@ import java.util.Map;
 
 /**
  * Per-day nutrition totals over a date range, for trend charts.
- * Uses three queries total (items in range + goal history + exercise totals), regardless of
- * range length.
+ * Uses four queries total (items in range + goal history + exercise totals + eating windows),
+ * regardless of range length.
  */
 @Service
 public class DiarySummaryService {
@@ -30,12 +32,15 @@ public class DiarySummaryService {
     private final DiaryItemRepository itemRepo;
     private final GoalsService goalsService;
     private final ExerciseService exerciseService;
+    private final EatingWindowService eatingWindowService;
 
     public DiarySummaryService(DiaryItemRepository itemRepo, GoalsService goalsService,
-                               ExerciseService exerciseService) {
+                               ExerciseService exerciseService,
+                               EatingWindowService eatingWindowService) {
         this.itemRepo = itemRepo;
         this.goalsService = goalsService;
         this.exerciseService = exerciseService;
+        this.eatingWindowService = eatingWindowService;
     }
 
     /**
@@ -63,11 +68,12 @@ public class DiarySummaryService {
         }
         Map<LocalDate, Integer> goals = goalsService.caloriesGoalsByDate(from, to);
         Map<LocalDate, Integer> exercise = exerciseService.caloriesByDate(from, to);
+        Map<LocalDate, EatingWindowResponse> windows = eatingWindowService.byDate(from, to);
 
         List<DailySummaryDto> rows = new ArrayList<>((int) days);
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             rows.add(DailySummaryDto.of(d, totalsByDate.getOrDefault(d, new MacroTotals()), goals.get(d),
-                    exercise.getOrDefault(d, 0)));
+                    exercise.getOrDefault(d, 0), windows.get(d)));
         }
         return rows;
     }

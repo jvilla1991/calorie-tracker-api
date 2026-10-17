@@ -2,6 +2,8 @@ package com.calorietracker.diary;
 
 import com.calorietracker.diary.dto.DailySummaryDto;
 import com.calorietracker.diary.dto.DiaryResponse;
+import com.calorietracker.eatingwindow.EatingWindowService;
+import com.calorietracker.eatingwindow.dto.EatingWindowResponse;
 import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.food.Food;
 import com.calorietracker.goals.GoalsService;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +36,7 @@ class DiarySummaryServiceTest {
     @Mock DiaryItemRepository itemRepo;
     @Mock GoalsService goalsService;
     @Mock ExerciseService exerciseService;
+    @Mock EatingWindowService eatingWindowService;
 
     @InjectMocks DiarySummaryService service;
 
@@ -134,6 +138,24 @@ class DiarySummaryServiceTest {
                 .extracting(DailySummaryDto::exerciseCalories).containsExactly(0, 450, 0);
         verify(exerciseService, times(1)).caloriesByDate(D1, D1.plusDays(2));
         verifyNoMoreInteractions(exerciseService);
+    }
+
+    @Test
+    void eatingWindowComesFromOneRangeQuery_nullOnDaysWithout() {
+        when(itemRepo.findAllInDateRange(any(), any())).thenReturn(List.of());
+        goalsConstant(D1, D1.plusDays(1), 2000);
+        Instant start = Instant.parse("2026-10-02T16:20:00Z");
+        when(eatingWindowService.byDate(D1, D1.plusDays(1)))
+                .thenReturn(Map.of(D1.plusDays(1), new EatingWindowResponse(start, null)));
+
+        List<DailySummaryDto> rows = service.summarize(D1, D1.plusDays(1));
+
+        assertThat(rows.get(0).eatingStartedAt()).isNull();
+        assertThat(rows.get(0).eatingEndedAt()).isNull();
+        assertThat(rows.get(1).eatingStartedAt()).isEqualTo(start);
+        assertThat(rows.get(1).eatingEndedAt()).isNull();
+        verify(eatingWindowService, times(1)).byDate(D1, D1.plusDays(1));
+        verifyNoMoreInteractions(eatingWindowService);
     }
 
     @Test

@@ -32,6 +32,20 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
+	// AWS SDK v2: S3 storage for meal photos (see photo/PhotoStorageConfig.java).
+	// Only the synchronous S3 client is used, over the JDK's own HTTP stack (url-connection-client).
+	// The SDK's default HTTP clients are excluded on purpose:
+	//  - Spring Boot's dependency management would pin their Apache HttpClient 5 / Netty libraries
+	//    to versions the SDK was not built against (it downgrades httpclient5 5.6 -> 5.5);
+	//  - with Apache HttpClient 5 on the classpath, RestClient.builder() (OpenFoodFactsClient)
+	//    would silently switch to it instead of the JDK client.
+	implementation platform('software.amazon.awssdk:bom:2.55.10')
+	implementation('software.amazon.awssdk:s3') {
+		exclude group: 'software.amazon.awssdk', module: 'apache5-client'
+		exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+	}
+	implementation 'software.amazon.awssdk:url-connection-client'
+
 	runtimeOnly 'org.postgresql:postgresql'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

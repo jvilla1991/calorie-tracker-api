@@ -5,6 +5,7 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -29,6 +30,17 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /**
+     * Paths anyone may GET without a token (read-only public view). A request to one of these
+     * that carries a bad or expired token is treated as anonymous and still succeeds:
+     * {@link JwtFilter} never rejects, it only skips authentication.
+     */
+    static final String[] PUBLIC_GET_PATHS = {
+            "/api/diary/summary",
+            "/api/diary/{date:\\d{4}-\\d{2}-\\d{2}}",
+            "/api/goals",
+    };
+
     @Value("${cors.allowed-origins:http://localhost:5173}")
     private List<String> allowedOrigins;
 
@@ -46,6 +58,14 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/api/auth/login").permitAll()
+                // Public read-only view: anyone may GET the diary day view, the summary and the
+                // current goals without logging in. GET only, so every write (POST/PUT/DELETE)
+                // on these or any other path still needs a token. {date} is pinned to the
+                // YYYY-MM-DD shape so no other single-segment /api/diary/* path is opened.
+                // Deliberately NOT public: /api/weigh-ins/** (weight stays private, GET too),
+                // /api/foods/** (search calls an external API; recent foods only serve the
+                // logging UI) and /api/saved-meals/**.
+                .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
                 .anyRequest().authenticated()
             )
             // No/invalid/expired token -> 401. Without an entry point, this stateless setup

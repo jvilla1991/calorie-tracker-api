@@ -1,5 +1,9 @@
 package com.calorietracker.diary;
 
+import com.calorietracker.eatingwindow.EatingWindowRepository;
+import com.calorietracker.eatingwindow.EatingWindowService;
+import com.calorietracker.exercise.ExerciseEntryRepository;
+import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.goals.DailyGoal;
 import com.calorietracker.goals.DailyGoalRepository;
 import com.calorietracker.goals.GoalsService;
@@ -12,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -41,7 +46,9 @@ class DiarySummaryControllerTest {
         g.setEffectiveFrom(LocalDate.of(2026, 1, 1));
         when(goalRepo.findAllByOrderByEffectiveFromAscIdAsc()).thenReturn(List.of(g));
 
-        DiarySummaryService summary = new DiarySummaryService(itemRepo, new GoalsService(goalRepo));
+        DiarySummaryService summary = new DiarySummaryService(itemRepo, new GoalsService(goalRepo),
+                new ExerciseService(mock(ExerciseEntryRepository.class)),
+                new EatingWindowService(mock(EatingWindowRepository.class)));
         mvc = MockMvcBuilders
                 .standaloneSetup(new DiaryController(mock(DiaryService.class), summary))
                 .build();
@@ -59,7 +66,10 @@ class DiarySummaryControllerTest {
                 .andExpect(jsonPath("$[0].carbs").value(0))
                 .andExpect(jsonPath("$[0].fat").value(0))
                 .andExpect(jsonPath("$[0].fiber").value(0))
-                .andExpect(jsonPath("$[0].goalCalories").value(2000));
+                .andExpect(jsonPath("$[0].goalCalories").value(2000))
+                .andExpect(jsonPath("$[0].exerciseCalories").value(0))
+                .andExpect(jsonPath("$[0].eatingStartedAt").value(nullValue()))
+                .andExpect(jsonPath("$[0].eatingEndedAt").value(nullValue()));
     }
 
     @Test

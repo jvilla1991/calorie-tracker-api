@@ -2,6 +2,7 @@ package com.calorietracker.diary;
 
 import com.calorietracker.diary.dto.DailySummaryDto;
 import com.calorietracker.diary.dto.DiaryResponse;
+import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.food.Food;
 import com.calorietracker.goals.GoalsService;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class DiarySummaryServiceTest {
 
     @Mock DiaryItemRepository itemRepo;
     @Mock GoalsService goalsService;
+    @Mock ExerciseService exerciseService;
 
     @InjectMocks DiarySummaryService service;
 
@@ -120,6 +122,18 @@ class DiarySummaryServiceTest {
 
         assertThat(service.summarize(D1, D1.plusDays(1)))
                 .extracting(DailySummaryDto::goalCalories).containsExactly(2000, 1800);
+    }
+
+    @Test
+    void exerciseCaloriesComeFromOneRangeQuery_zeroOnDaysWithout() {
+        when(itemRepo.findAllInDateRange(any(), any())).thenReturn(List.of());
+        goalsConstant(D1, D1.plusDays(2), 2000);
+        when(exerciseService.caloriesByDate(D1, D1.plusDays(2))).thenReturn(Map.of(D1.plusDays(1), 450));
+
+        assertThat(service.summarize(D1, D1.plusDays(2)))
+                .extracting(DailySummaryDto::exerciseCalories).containsExactly(0, 450, 0);
+        verify(exerciseService, times(1)).caloriesByDate(D1, D1.plusDays(2));
+        verifyNoMoreInteractions(exerciseService);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.calorietracker.diary;
 
 import com.calorietracker.diary.dto.*;
+import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.food.Food;
 import com.calorietracker.food.FoodService;
 import org.springframework.data.domain.PageRequest;
@@ -20,22 +21,30 @@ public class DiaryService {
     private final DiaryMealRepository  mealRepo;
     private final DiaryItemRepository  itemRepo;
     private final FoodService          foodService;
+    private final ExerciseService      exerciseService;
 
     public DiaryService(DiaryEntryRepository entryRepo,
                         DiaryMealRepository mealRepo,
                         DiaryItemRepository itemRepo,
-                        FoodService foodService) {
-        this.entryRepo   = entryRepo;
-        this.mealRepo    = mealRepo;
-        this.itemRepo    = itemRepo;
-        this.foodService = foodService;
+                        FoodService foodService,
+                        ExerciseService exerciseService) {
+        this.entryRepo       = entryRepo;
+        this.mealRepo        = mealRepo;
+        this.itemRepo        = itemRepo;
+        this.foodService     = foodService;
+        this.exerciseService = exerciseService;
     }
 
+    /**
+     * The day view. Read-only: a day with no {@code diary_entries} row (e.g. exercise logged but
+     * no food) is answered with empty meals and still carries its exercise; no row is created.
+     */
     @Transactional(readOnly = true)
     public DiaryResponse getDay(LocalDate date) {
         return entryRepo.findByEntryDate(date)
                 .map(DiaryResponse::from)
-                .orElse(DiaryResponse.empty(date));
+                .orElse(DiaryResponse.empty(date))
+                .withExercise(exerciseService.forDay(date));
     }
 
     @Transactional

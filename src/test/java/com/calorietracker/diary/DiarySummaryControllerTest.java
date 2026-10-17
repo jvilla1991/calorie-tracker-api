@@ -46,7 +46,8 @@ class DiarySummaryControllerTest {
         g.setEffectiveFrom(LocalDate.of(2026, 1, 1));
         when(goalRepo.findAllByOrderByEffectiveFromAscIdAsc()).thenReturn(List.of(g));
 
-        DiarySummaryService summary = new DiarySummaryService(itemRepo, new GoalsService(goalRepo),
+        DiarySummaryService summary = new DiarySummaryService(itemRepo, mock(DiaryMealRepository.class),
+                new GoalsService(goalRepo),
                 new ExerciseService(mock(ExerciseEntryRepository.class)),
                 new EatingWindowService(mock(EatingWindowRepository.class)));
         mvc = MockMvcBuilders

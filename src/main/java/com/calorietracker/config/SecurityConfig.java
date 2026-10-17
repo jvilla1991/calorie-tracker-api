@@ -39,6 +39,9 @@ public class SecurityConfig {
             "/api/diary/summary",
             "/api/diary/{date:\\d{4}-\\d{2}-\\d{2}}",
             "/api/goals",
+            // Meal photos, so the read-only diary can show them in a plain <img> (no auth header).
+            "/api/photos/{id:\\d+}/thumb",
+            "/api/photos/{id:\\d+}/full",
     };
 
     @Value("${cors.allowed-origins:http://localhost:5173}")
@@ -58,10 +61,12 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/api/auth/login").permitAll()
-                // Public read-only view: anyone may GET the diary day view, the summary and the
-                // current goals without logging in. GET only, so every write (POST/PUT/DELETE)
-                // on these or any other path still needs a token. {date} is pinned to the
-                // YYYY-MM-DD shape so no other single-segment /api/diary/* path is opened.
+                // Public read-only view: anyone may GET the diary day view, the summary, the
+                // current goals and the meal photos without logging in. GET only, so every write
+                // (POST/PUT/DELETE) on these or any other path still needs a token: uploading or
+                // deleting a photo and editing a meal's details stay private. {date} is pinned to
+                // the YYYY-MM-DD shape so no other single-segment /api/diary/* path is opened, and
+                // a photo {id} to digits.
                 // Deliberately NOT public: /api/weigh-ins/** (weight stays private, GET too),
                 // /api/foods/** (search calls an external API; recent foods only serve the
                 // logging UI) and /api/saved-meals/**.

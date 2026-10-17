@@ -4,6 +4,7 @@ import com.calorietracker.eatingwindow.EatingWindowService;
 import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.food.Food;
 import com.calorietracker.food.FoodService;
+import com.calorietracker.photo.MealPhotoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -63,7 +64,8 @@ class MealDetailsControllerTest {
         when(mealRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         DiaryService service = new DiaryService(mock(DiaryEntryRepository.class), mealRepo,
                 mock(DiaryItemRepository.class), mock(FoodService.class),
-                mock(ExerciseService.class), mock(EatingWindowService.class));
+                mock(ExerciseService.class), mock(EatingWindowService.class),
+                mock(MealPhotoService.class));
         mvc = MockMvcBuilders
                 .standaloneSetup(new DiaryController(service, mock(DiarySummaryService.class)))
                 .build();

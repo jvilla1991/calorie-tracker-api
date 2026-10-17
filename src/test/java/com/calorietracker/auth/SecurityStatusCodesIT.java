@@ -25,7 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code /error}, which MockMvc never performs.
  *
  * <ul>
- *   <li>Missing / garbage / expired JWT → 401 (not 403).</li>
+ *   <li>Missing / garbage / expired JWT on a protected path → 401 (not 403). Uses
+ *       {@code /api/weigh-ins}, which stays private; {@code GET /api/goals} is public now
+ *       (see {@code PublicReadAccessIT}).</li>
  *   <li>Authenticated request with a bad body → 400 (not 403).</li>
  *   <li>Wrong login password → 401; right password → 200.</li>
  * </ul>
@@ -49,12 +51,12 @@ class SecurityStatusCodesIT {
     @Test
     void noToken_is401() throws Exception {
         assertThat(get("/api/weigh-ins", null).statusCode()).isEqualTo(401);
-        assertThat(get("/api/goals", null).statusCode()).isEqualTo(401);
+        assertThat(get("/api/saved-meals", null).statusCode()).isEqualTo(401);
     }
 
     @Test
     void garbageToken_is401() throws Exception {
-        assertThat(get("/api/goals", "not-a-jwt").statusCode()).isEqualTo(401);
+        assertThat(get("/api/weigh-ins", "not-a-jwt").statusCode()).isEqualTo(401);
     }
 
     @Test
@@ -64,7 +66,7 @@ class SecurityStatusCodesIT {
                 .expiration(new Date(System.currentTimeMillis() + 60_000))
                 .signWith(key("some-other-secret-that-is-also-at-least-32-bytes"))
                 .compact();
-        assertThat(get("/api/goals", forged).statusCode()).isEqualTo(401);
+        assertThat(get("/api/weigh-ins", forged).statusCode()).isEqualTo(401);
     }
 
     @Test
@@ -76,13 +78,13 @@ class SecurityStatusCodesIT {
                 .expiration(new Date(System.currentTimeMillis() - 60_000))
                 .signWith(key(jwtSecret))
                 .compact();
-        assertThat(get("/api/goals", expired).statusCode()).isEqualTo(401);
+        assertThat(get("/api/weigh-ins", expired).statusCode()).isEqualTo(401);
     }
 
     @Test
     void validTokenForUnknownUser_is401_not500() throws Exception {
         String token = jwtUtils.generateToken("nobody-by-this-name");
-        assertThat(get("/api/goals", token).statusCode()).isEqualTo(401);
+        assertThat(get("/api/weigh-ins", token).statusCode()).isEqualTo(401);
     }
 
     @Test
@@ -126,6 +128,7 @@ class SecurityStatusCodesIT {
     @Test
     void validToken_goodRequest_is200() throws Exception {
         assertThat(get("/api/goals", validToken()).statusCode()).isEqualTo(200);
+        assertThat(get("/api/weigh-ins", validToken()).statusCode()).isEqualTo(200);
     }
 
     // --- login -----------------------------------------------------------------------------

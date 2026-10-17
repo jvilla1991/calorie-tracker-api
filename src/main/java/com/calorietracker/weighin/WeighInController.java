@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Body-weight log, one reading per day, always in kilograms (the frontend converts pounds).
- * Requires authentication like every other non-auth endpoint.
+ * Always requires authentication, GET included: weight is never part of the public read-only view.
  */
 @RestController
 @RequestMapping("/api/weigh-ins")

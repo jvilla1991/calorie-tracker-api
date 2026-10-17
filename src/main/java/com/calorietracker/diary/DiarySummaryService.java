@@ -2,6 +2,7 @@ package com.calorietracker.diary;
 
 import com.calorietracker.diary.dto.DailySummaryDto;
 import com.calorietracker.diary.dto.MacroTotals;
+import com.calorietracker.exercise.ExerciseService;
 import com.calorietracker.goals.GoalsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,7 +18,8 @@ import java.util.Map;
 
 /**
  * Per-day nutrition totals over a date range, for trend charts.
- * Uses two queries total (items in range + goal history), regardless of range length.
+ * Uses three queries total (items in range + goal history + exercise totals), regardless of
+ * range length.
  */
 @Service
 public class DiarySummaryService {
@@ -27,10 +29,13 @@ public class DiarySummaryService {
 
     private final DiaryItemRepository itemRepo;
     private final GoalsService goalsService;
+    private final ExerciseService exerciseService;
 
-    public DiarySummaryService(DiaryItemRepository itemRepo, GoalsService goalsService) {
+    public DiarySummaryService(DiaryItemRepository itemRepo, GoalsService goalsService,
+                               ExerciseService exerciseService) {
         this.itemRepo = itemRepo;
         this.goalsService = goalsService;
+        this.exerciseService = exerciseService;
     }
 
     /**
@@ -57,10 +62,12 @@ public class DiarySummaryService {
             totalsByDate.computeIfAbsent(date, d -> new MacroTotals()).add(MacroTotals.forItem(item));
         }
         Map<LocalDate, Integer> goals = goalsService.caloriesGoalsByDate(from, to);
+        Map<LocalDate, Integer> exercise = exerciseService.caloriesByDate(from, to);
 
         List<DailySummaryDto> rows = new ArrayList<>((int) days);
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-            rows.add(DailySummaryDto.of(d, totalsByDate.getOrDefault(d, new MacroTotals()), goals.get(d)));
+            rows.add(DailySummaryDto.of(d, totalsByDate.getOrDefault(d, new MacroTotals()), goals.get(d),
+                    exercise.getOrDefault(d, 0)));
         }
         return rows;
     }

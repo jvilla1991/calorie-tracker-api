@@ -56,7 +56,8 @@ public class MealPhotoController {
     /**
      * {@code GET /api/photos/{id}/thumb}: with S3, <b>302</b> to a presigned URL valid for
      * 10 minutes; with local storage, <b>200</b> {@code image/jpeg}. Either way
-     * {@code Cache-Control: private, max-age=300}. Works in a plain {@code <img src>}.
+     * {@code Cache-Control: private, max-age=300}. Public, like the read-only diary: no login
+     * needed, so it works in a plain {@code <img src>}. Upload and delete stay private.
      * 404 if no such photo; 503 if photo storage is not configured.
      */
     @GetMapping("/api/photos/{id}/thumb")

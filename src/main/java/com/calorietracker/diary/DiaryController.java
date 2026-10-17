@@ -51,6 +51,21 @@ public class DiaryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(diaryService.addMeal(date, req));
     }
 
+    /**
+     * {@code PUT /api/diary/meals/{mealId}/details} with
+     * {@code {"note": "Pad thai at Lotus", "estimatedCalories": 900}} → <b>200</b> with the
+     * updated meal (same shape as in {@code GET /api/diary/{date}}; its {@code totals.calories}
+     * includes the estimate). Both fields are replaced, so send both: null or missing clears one.
+     * 400 if the trimmed note is over 500 characters or {@code estimatedCalories} is not a whole
+     * number in 1-10000; 404 if no such meal.
+     */
+    @PutMapping("/meals/{mealId}/details")
+    public DiaryMealResponse updateDetails(
+            @PathVariable Long mealId,
+            @Valid @RequestBody MealDetailsRequest req) {
+        return diaryService.updateDetails(mealId, req);
+    }
+
     @PostMapping("/meals/{mealId}/items")
     public ResponseEntity<DiaryItemResponse> addItem(
             @PathVariable Long mealId,

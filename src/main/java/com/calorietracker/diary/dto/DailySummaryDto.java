@@ -8,7 +8,8 @@ import java.time.LocalDate;
 
 /**
  * One day's row in GET /api/diary/summary. Macro values use the same math and numeric style
- * as {@link MacroTotals} on the diary day view; {@code goalCalories} is the calories goal that
+ * as {@link MacroTotals} on the diary day view; {@code calories} includes the meals' calorie
+ * estimates, as the day view's totals do. {@code goalCalories} is the calories goal that
  * was in effect on {@code date}. {@code exerciseCalories} is the day's total calories burned
  * by logged exercise (0 when none); {@code calories} stays food-only. {@code eatingStartedAt} /
  * {@code eatingEndedAt} are the day's eating window as ISO-8601 UTC instants, each null when

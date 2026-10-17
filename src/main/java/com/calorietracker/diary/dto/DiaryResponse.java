@@ -8,7 +8,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * GET /api/diary/{date}. {@code totals} covers food only; {@code exercise} lists the day's
+ * GET /api/diary/{date}. {@code totals} covers food only: the logged items plus the meals'
+ * calorie estimates (estimates add calories, no macros). {@code exercise} lists the day's
  * exercise entries (id ascending, empty when none) and {@code exerciseCalories} is their sum.
  * {@code eatingWindow} is the day's eating window, or {@code null} when none was logged.
  */
